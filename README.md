@@ -1,5 +1,4 @@
 # § Lexicon AI — Enterprise Legal Contract Intelligence Engine
-
 <div align="center">
 
 ![Lexicon AI Banner](https://img.shields.io/badge/Lexicon%20AI-Legal%20Intelligence%20Platform-2563EB?style=for-the-badge&logo=appveyor)
