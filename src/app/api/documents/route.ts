@@ -230,11 +230,14 @@ export async function GET() {
       },
       { status: 200 }
     );
-  } catch {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown database error';
+    console.error('[GET /api/documents] Error querying database:', message);
     return NextResponse.json(
       {
         success: false,
         error: 'Failed to retrieve documents list.',
+        detail: !process.env.DATABASE_URL ? 'DATABASE_URL is not set in environment variables.' : message,
       },
       { status: 500 }
     );
