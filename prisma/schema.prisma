@@ -1,0 +1,197 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum DocumentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum GenerationStatus {
+  PENDING
+  STREAMING
+  COMPLETED
+  FAILED
+}
+
+enum CitationVerificationStatus {
+  UNVERIFIED
+  VERIFIED
+  PARTIAL
+  REFUTED
+}
+
+enum ChangeCategory {
+  ADDITION
+  DELETION
+  MODIFICATION
+  CLAUSE_MODIFIED
+  RISK_ALTERATION
+  TERM_CHANGED
+}
+
+enum SignificanceCategory {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Document {
+  id                String                 @id @default(cuid())
+  originalFilename  String
+  mimeType          String
+  storageKey        String                 @unique
+  fileSize          Int?
+  status            DocumentStatus         @default(PENDING)
+  processingError   String?                @db.Text
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  pages             DocumentPage[]
+  chunks            DocumentChunk[]
+  conversations     ConversationDocument[]
+  citations         Citation[]
+  versions          DocumentVersion[]
+  sourceComparisons ComparisonChange[]     @relation("SourceDocComparisons")
+  targetComparisons ComparisonChange[]     @relation("TargetDocComparisons")
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model DocumentPage {
+  id            String   @id @default(cuid())
+  documentId    String
+  pageNumber    Int
+  extractedText String   @db.Text
+  createdAt     DateTime @default(now())
+
+  document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, pageNumber])
+  @@index([documentId])
+}
+
+model DocumentChunk {
+  id         String   @id @default(cuid())
+  documentId String
+  chunkIndex Int
+  chunkText  String   @db.Text
+  pageNumber Int?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId])
+}
+
+model Conversation {
+  id        String                 @id @default(cuid())
+  title     String?
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  documents ConversationDocument[]
+  messages  Message[]
+
+  @@index([createdAt])
+}
+
+model ConversationDocument {
+  conversationId String
+  documentId     String
+  attachedAt     DateTime     @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  document       Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, documentId])
+  @@index([documentId])
+  @@index([conversationId])
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  content        String           @db.Text
+  status         GenerationStatus @default(COMPLETED)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  citations      Citation[]
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model Citation {
+  id                 String                     @id @default(cuid())
+  messageId          String
+  documentId         String
+  quotedText         String                     @db.Text
+  verificationStatus CitationVerificationStatus @default(UNVERIFIED)
+  pageNumber         Int?
+  locationMetadata   Json?
+  createdAt          DateTime                   @default(now())
+
+  message            Message                    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  document           Document                   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([documentId])
+  @@index([verificationStatus])
+}
+
+model DocumentVersion {
+  id            String   @id @default(cuid())
+  documentId    String
+  versionGroup  String
+  versionLabel  String
+  createdAt     DateTime @default(now())
+
+  document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([versionGroup])
+}
+
+model ComparisonChange {
+  id                   String               @id @default(cuid())
+  versionGroupId       String?
+  sourceDocumentId     String?
+  targetDocumentId     String?
+  changeCategory       ChangeCategory
+  significance         SignificanceCategory
+  oldText              String?              @db.Text
+  newText              String?              @db.Text
+  plainLanguageSummary String               @db.Text
+  createdAt            DateTime             @default(now())
+
+  sourceDocument       Document?            @relation("SourceDocComparisons", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  targetDocument       Document?            @relation("TargetDocComparisons", fields: [targetDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([versionGroupId])
+  @@index([sourceDocumentId])
+  @@index([targetDocumentId])
+  @@index([significance])
+}
