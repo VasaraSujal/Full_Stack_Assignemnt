@@ -20,6 +20,7 @@
 
 ## 📑 Table of Contents
 
+- [Application Screenshots (Live Demonstration)](#-application-screenshots-live-demonstration)
 - [1. Executive Summary & Problem Solved](#1-executive-summary--problem-solved)
 - [2. System Architecture & End-to-End Flow](#2-system-architecture--end-to-end-flow)
 - [3. Core Feature Matrix](#3-core-feature-matrix)
@@ -34,6 +35,38 @@
 - [12. Automated Quality Gates & Test Coverage](#12-automated-quality-gates--test-coverage)
 - [13. Known Limitations & Future Roadmap](#13-known-limitations--future-roadmap)
 - [14. Deliverables & Submission Checklist](#14-deliverables--submission-checklist)
+
+---
+
+## 📸 Application Screenshots (Live Demonstration)
+
+The following live screenshots demonstrate the core evaluation workflows required by the specification:
+
+### 1. Document Upload & Processing
+*Validation, deterministic processing, and upload modal supporting PDF and DOCX agreements with real-time status feedback.*
+
+![1. Document Upload Modal](docs/screenshots/01-upload.png)
+
+---
+
+### 2. Chat with Verified Quotes & Grounded Q&A
+*Interactive legal research showing streaming responses, autonomous agentic reasoning, and authoritative green `VERIFIED` citations with exact document and page mapping.*
+
+![2. Chat with Verified Quotes](docs/screenshots/02-chat-verified-quotes.png)
+
+---
+
+### 3. Citation Highlighting in Document Viewer
+*Clicking an answer citation immediately opens the contract viewer, auto-scrolls to the exact page, and highlights the authoritative source passage in the contract text.*
+
+![3. Citation Highlighting in Document Viewer](docs/screenshots/03-citation-highlighting.png)
+
+---
+
+### 4. Clause-Level Contract Version Comparison
+*Multi-version comparison analyzing substantive differences, classifying risk levels (`CRITICAL`, `HIGH`, `MEDIUM`), and displaying side-by-side excerpts with quote inspection.*
+
+![4. Contract Version Comparison](docs/screenshots/04-contract-comparison.png)
 
 ---
 
