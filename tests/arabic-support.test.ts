@@ -92,5 +92,27 @@ describe('Phase Extra — Arabic Contract Support & RTL Processing', () => {
       expect(result.startOffset).toBe(-1);
       expect(result.endOffset).toBe(-1);
     });
+
+    it('extracts all 4 pages from the real sample Arabic PDF contract', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const { extractTextFromPdf } = await import('@/lib/text-extractor');
+
+      const samplePdfPath = path.resolve(process.cwd(), 'sample-contracts', 'arabic-commercial-agreement.pdf');
+      if (fs.existsSync(samplePdfPath)) {
+        const buffer = fs.readFileSync(samplePdfPath);
+        const result = await extractTextFromPdf(buffer);
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.totalPages).toBe(4);
+          expect(result.pages.length).toBe(4);
+          expect(isArabicText(result.pages[0].text)).toBe(true);
+          expect(isArabicText(result.pages[1].text)).toBe(true);
+          expect(isArabicText(result.pages[2].text)).toBe(true);
+          expect(isArabicText(result.pages[3].text)).toBe(true);
+        }
+      }
+    });
   });
 });
