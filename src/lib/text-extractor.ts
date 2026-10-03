@@ -144,7 +144,18 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<ExtractionResu
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pdfModule = require('pdf-parse');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfWorker = require('pdf-parse/worker');
     const PDFParseClass = pdfModule.PDFParse || pdfModule.default?.PDFParse || pdfModule;
+
+    // Use embedded Base64 data URI so pdf-parse never requires or imports files from the filesystem on Vercel
+    if (typeof PDFParseClass?.setWorker === 'function' && typeof pdfWorker?.getData === 'function') {
+      try {
+        PDFParseClass.setWorker(pdfWorker.getData());
+      } catch {
+        // Fallback to default
+      }
+    }
 
     let parsedText: { text?: string; pages?: Array<{ text?: string; num?: number }> } | null = null;
 
