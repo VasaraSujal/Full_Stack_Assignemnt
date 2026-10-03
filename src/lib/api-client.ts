@@ -227,6 +227,37 @@ export async function deleteDocument(id: string): Promise<void> {
   if (!data.success) throw new Error(data.error || 'Failed to delete document');
 }
 
+export interface ExportReportOptions {
+  sections: Array<'summary' | 'risks' | 'obligations' | 'citations'>;
+  language?: 'source' | 'en';
+}
+
+export async function exportContractReport(
+  documentId: string,
+  options: ExportReportOptions
+): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(`/api/documents/${documentId}/export-report`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || `Report export failed with status ${res.status}`);
+  }
+
+  const disposition = res.headers.get('Content-Disposition') || '';
+  let filename = 'contract-review-report.pdf';
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  if (match && match[1]) {
+    filename = match[1];
+  }
+
+  const blob = await res.blob();
+  return { blob, filename };
+}
+
 // 2. Conversation APIs
 export async function fetchConversations(): Promise<ConversationItem[]> {
   const res = await fetch('/api/conversations', { cache: 'no-store' });

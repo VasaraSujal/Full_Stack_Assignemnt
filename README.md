@@ -9,7 +9,7 @@
 [![Prisma ORM](https://img.shields.io/badge/Prisma-6.4.1-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-336791?style=flat-square&logo=postgresql)](https://supabase.com/)
 [![Google Gemini](https://img.shields.io/badge/Google%20Gemini-2.5%20Flash-4285F4?style=flat-square&logo=google)](https://aistudio.google.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-151%2F151%20Passed-4BB543?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-166%2F166%20Passed-4BB543?style=flat-square&logo=vitest)](https://vitest.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
 *An enterprise AI contract analysis and citation verification platform featuring multi-format document ingestion (PDF/DOCX), deterministic character-offset chunking, grounded Q&A, autonomous multi-round agentic research, and dual-sided version comparison.*
@@ -27,14 +27,15 @@
 - [4. Ingestion & Citation Verification Pipeline](#4-ingestion--citation-verification-pipeline)
 - [5. Part C Selected Challenge: Autonomous Agentic Research](#5-part-c-selected-challenge-autonomous-agentic-research)
 - [6. Dual-Sided Contract Version Comparison](#6-dual-sided-contract-version-comparison)
-- [7. Database Schema & Data Models](#7-database-schema--data-models)
-- [8. Project Directory Structure](#8-project-directory-structure)
-- [9. Technology Stack Matrix](#9-technology-stack-matrix)
-- [10. Environment Variables Configuration](#10-environment-variables-configuration)
-- [11. Local Installation & Development](#11-local-installation--development)
-- [12. Automated Quality Gates & Test Coverage](#12-automated-quality-gates--test-coverage)
-- [13. Known Limitations & Future Roadmap](#13-known-limitations--future-roadmap)
-- [14. Deliverables & Submission Checklist](#14-deliverables--submission-checklist)
+- [7. Contract Review PDF Export Feature](#7-contract-review-pdf-export-feature)
+- [8. Database Schema & Data Models](#8-database-schema--data-models)
+- [9. Project Directory Structure](#9-project-directory-structure)
+- [10. Technology Stack Matrix](#10-technology-stack-matrix)
+- [11. Environment Variables Configuration](#11-environment-variables-configuration)
+- [12. Local Installation & Development](#12-local-installation--development)
+- [13. Automated Quality Gates & Test Coverage](#13-automated-quality-gates--test-coverage)
+- [14. Known Limitations & Future Roadmap](#14-known-limitations--future-roadmap)
+- [15. Deliverables & Submission Checklist](#15-deliverables--submission-checklist)
 
 ---
 
@@ -182,6 +183,7 @@ User Action           API Layer                 Processing Pipeline             
 | **Contract Comparison** | Clause-level difference detection & risk filtering | ✅ **100% Complete** | Dual-sided quotation verification across 2–5 versions with `HIGH`, `MEDIUM`, `LOW` filters. |
 | **Agentic Research** | Autonomous multi-round tool investigation loop | ✅ **100% Complete** | Chosen Part C challenge: `search_document`, `get_section`, `list_clauses` with live timeline. |
 | **Arabic Support (Bonus)** | Arabic text extraction, RTL layout & diacritic matching | ✅ **100% Complete** | Automatic Arabic script detection, interactive RTL/LTR toggle, Tashkeel diacritic normalization, and verbatim citation matching. |
+| **Contract Review PDF Export** | Downloadable PDF report with verified citations & risks | ✅ **100% Complete** | Modular section selector (Summary, Risks, Obligations, Citations), authoritative quotation re-verification, Arabic RTL Amiri font rendering, and prominent human-review disclaimer. |
 
 ---
 
@@ -320,7 +322,31 @@ Lexicon AI compares contract versions at the substantive clause level, calculati
 
 ---
 
-## 7. Database Schema & Data Models
+## 7. Contract Review PDF Export Feature
+
+Lexicon AI provides an enterprise-grade **Downloadable Contract Review Report** engine allowing legal counsel and business stakeholders to generate structured, audit-ready PDF reports from analyzed agreements.
+
+### 🌟 Key Capabilities
+
+1. **Modular Section Selection**: Users independently configure which sections to include:
+   - **Document Summary**: High-level contract purpose, contracting parties, and core scope.
+   - **Identified Risks**: Material liability exposures, penalty terms, and risk severity (`HIGH`, `MEDIUM`, `LOW`).
+   - **Contractual Obligations**: Operational requirements, responsible parties, and milestone deadlines.
+   - **Verified Citations**: Exact verbatim quotations with verified page numbers and character offsets.
+2. **Authoritative Citation Re-Verification**: Every supporting quote is verified server-side against authoritative `DocumentPage` texts using `findQuoteOffsets`. Quotes are tagged with exact coordinates and `VERIFIED`, `PARTIAL`, or `REFUTED` statuses. Fabricated claims are never marked verified.
+3. **Arabic & RTL Support**: Automatically detects Arabic script, aligns text right-to-left (`dir="rtl"`), and formats Arabic legal paragraphs using bundled classical Naskh typography (`Amiri-Regular.ttf` and `Amiri-Bold.ttf`).
+4. **Mandatory Human-Review Disclaimer**: Prominently features the required legal notice across the cover grid and running page footers:
+   > *"AI-generated analysis is provided for informational and document-review purposes only. It may contain errors or omissions and does not constitute legal advice. Supporting quotations should be checked in context, and all findings require review by a qualified human reviewer."*
+5. **Universal Vercel Compatibility**: Built using pure-JavaScript `pdfkit` streaming directly to an in-memory buffer with zero native C++ binaries, generating multi-page PDFs with running headers and dynamic `Page X of Y` page numbering in under 500ms.
+
+### User Access Flow
+
+- **Document Viewer**: Click the **`[ Export Review Report ]`** button in the top document viewer toolbar.
+- **Document Library**: Click the **`[ Export ]`** action button on any indexed contract row.
+
+---
+
+## 8. Database Schema & Data Models
 
 The relational schema is built on **Supabase PostgreSQL** via **Prisma ORM**:
 
@@ -367,7 +393,7 @@ The relational schema is built on **Supabase PostgreSQL** via **Prisma ORM**:
 
 ---
 
-## 8. Project Directory Structure
+## 9. Project Directory Structure
 
 ```
 .
@@ -422,7 +448,7 @@ The relational schema is built on **Supabase PostgreSQL** via **Prisma ORM**:
 
 ---
 
-## 9. Technology Stack Matrix
+## 10. Technology Stack Matrix
 
 | Component Layer | Technology Selected | Version | Rationale & Responsibility |
 | :--- | :--- | :---: | :--- |
@@ -439,7 +465,7 @@ The relational schema is built on **Supabase PostgreSQL** via **Prisma ORM**:
 
 ---
 
-## 10. Environment Variables Configuration
+## 11. Environment Variables Configuration
 
 | Variable Name | Required | Scope | Description |
 | :--- | :---: | :---: | :--- |
@@ -454,7 +480,7 @@ The relational schema is built on **Supabase PostgreSQL** via **Prisma ORM**:
 
 ---
 
-## 11. Local Installation & Development
+## 12. Local Installation & Development
 
 ```bash
 # 1. Clone the repository
@@ -480,12 +506,12 @@ Open [http://localhost:3000](http://localhost:3000) to access the application.
 
 ---
 
-## 12. Automated Quality Gates & Test Coverage
+## 13. Automated Quality Gates & Test Coverage
 
-All 151 tests across 18 test suites pass with **100% success**:
+All 166 tests across 19 test suites pass with **100% success**:
 
 ```bash
-# Run complete test suite (151 tests)
+# Run complete test suite (166 tests)
 npm test
 
 # Run Next.js ESLint
@@ -504,10 +530,11 @@ npm run build
 ### Test Suite Summary
 
 ```
- Test Files  18 passed (18)
-      Tests  151 passed (151)
-   Duration  ~19.04s
+ Test Files  19 passed (19)
+      Tests  166 passed (166)
+   Duration  ~20.37s
 
+ ✓ tests/contract-review-export.test.ts (15 tests)        - PDF report generation, Arabic RTL & citation integrity
  ✓ tests/arabic-support.test.ts (10 tests)                - Arabic script detection, diacritic normalization & PDF extraction
  ✓ tests/phase6-acceptance-reliability.test.ts (13 tests) - Adversarial verification & bounds
  ✓ tests/agentic-research-audit.test.ts (11 tests)        - Autonomous tool execution & SSE
@@ -529,7 +556,7 @@ npm run build
 
 ---
 
-## 13. Known Limitations & Future Roadmap
+## 14. Known Limitations & Future Roadmap
 
 1. **Scanned / Image-Only PDFs**: Optical Character Recognition (OCR) is not included in this phase. Scanned image-only PDFs fail gracefully with status `FAILED` and clear diagnostic notices.
    - *Future Work*: Integrate an asynchronous Tesseract/DocTR OCR worker pipeline.
@@ -538,7 +565,7 @@ npm run build
 
 ---
 
-## 14. Deliverables & Submission Checklist
+## 15. Deliverables & Submission Checklist
 
 - [x] **1. GitHub Repository Link**: Clean repo with strict `.gitignore` protection.
 - [x] **2. Production Deployment (Vercel)**: Configured with `vercel.json` and 60-second function timeouts.

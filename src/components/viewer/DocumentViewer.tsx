@@ -9,8 +9,10 @@ import {
   XIcon,
   AlertTriangleIcon,
   ShieldCheckIcon,
+  DownloadIcon,
 } from '@/components/ui/Icons';
 import { isArabicText } from '@/lib/arabic-support';
+import { ExportReportModal } from '@/components/documents/ExportReportModal';
 
 interface DocumentViewerProps {
   documentId: string;
@@ -28,6 +30,7 @@ export function DocumentViewer({
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [rtlMode, setRtlMode] = useState<'auto' | 'rtl' | 'ltr'>('auto');
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const highlightRef = useRef<HTMLElement | null>(null);
 
   // Load document details
@@ -324,6 +327,17 @@ export function DocumentViewer({
             </button>
           </div>
 
+          <button
+            type="button"
+            className="btn btn-primary btn-sm flex items-center gap-1.5"
+            onClick={() => setIsExportOpen(true)}
+            title="Export comprehensive contract review report as PDF"
+            style={{ height: '36px' }}
+          >
+            <DownloadIcon size={14} />
+            <span>Export Review Report</span>
+          </button>
+
           {onClose && (
             <button
               type="button"
@@ -338,6 +352,17 @@ export function DocumentViewer({
           )}
         </div>
       </div>
+
+      {/* Export Report Configuration Dialog */}
+      {isExportOpen && (
+        <ExportReportModal
+          documentId={documentId}
+          documentTitle={docDetail.originalFilename}
+          isCompleted={docDetail.status === 'COMPLETED'}
+          isOpen={isExportOpen}
+          onClose={() => setIsExportOpen(false)}
+        />
+      )}
 
       {/* 2. Active Citation Inspector Banner */}
       {activeCitation && (

@@ -13,7 +13,9 @@ import {
   UploadCloudIcon,
   AlertTriangleIcon,
   XIcon,
+  DownloadIcon,
 } from '@/components/ui/Icons';
+import { ExportReportModal } from './ExportReportModal';
 
 interface DocumentLibraryProps {
   documents: DocumentItem[];
@@ -37,6 +39,7 @@ export function DocumentLibrary({
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<DocumentItem | null>(null);
+  const [docToExport, setDocToExport] = useState<DocumentItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -451,6 +454,17 @@ export function DocumentLibrary({
 
                         <button
                           type="button"
+                          className="btn btn-secondary btn-sm"
+                          disabled={doc.status !== 'COMPLETED'}
+                          onClick={() => setDocToExport(doc)}
+                          title="Export Contract Review Report (PDF)"
+                        >
+                          <DownloadIcon size={13} />
+                          <span>Export</span>
+                        </button>
+
+                        <button
+                          type="button"
                           className="btn btn-danger btn-sm"
                           onClick={() => setDocToDelete(doc)}
                           title="Delete contract"
@@ -538,6 +552,17 @@ export function DocumentLibrary({
           setIsUploadOpen(false);
         }}
       />
+
+      {/* 6. Export Report Configuration Dialog */}
+      {docToExport && (
+        <ExportReportModal
+          documentId={docToExport.id}
+          documentTitle={docToExport.originalFilename}
+          isCompleted={docToExport.status === 'COMPLETED'}
+          isOpen={Boolean(docToExport)}
+          onClose={() => setDocToExport(null)}
+        />
+      )}
     </div>
   );
 }
