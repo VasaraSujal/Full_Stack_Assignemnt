@@ -458,19 +458,41 @@ Preamble excerpt: ${page1.slice(0, 350).replace(/\s+/g, ' ')}...`;
   return reportData;
 }
 
+function resolveReportFontBuffer(filename: string): Buffer | null {
+  const candidatePaths = [
+    path.join(process.cwd(), 'src', 'assets', 'fonts', filename),
+    path.resolve(process.cwd(), 'src', 'assets', 'fonts', filename),
+    path.join(__dirname, '..', '..', '..', 'src', 'assets', 'fonts', filename),
+    path.resolve('src/assets/fonts', filename),
+  ];
+  for (const p of candidatePaths) {
+    try {
+      if (fs.existsSync(p)) {
+        return fs.readFileSync(p);
+      }
+    } catch {
+      // Continue searching
+    }
+  }
+  return null;
+}
+
 /**
  * Generate a downloadable, professional PDF buffer with Arabic font support and dynamic pagination
  */
 export async function generateContractReviewPdf(data: ContractReportData): Promise<Buffer> {
-  const regularFontPath = path.join(process.cwd(), 'src', 'assets', 'fonts', 'Amiri-Regular.ttf');
-  const boldFontPath = path.join(process.cwd(), 'src', 'assets', 'fonts', 'Amiri-Bold.ttf');
+  const regularFontBuf = resolveReportFontBuffer('Amiri-Regular.ttf');
+  const boldFontBuf = resolveReportFontBuffer('Amiri-Bold.ttf');
+  const hasAmiriFonts = regularFontBuf !== null && boldFontBuf !== null;
 
   return new Promise<Buffer>((resolve, reject) => {
     try {
+      // Initialize PDFDocument with custom font buffer directly so pdfkit NEVER attempts to load '#standard-fonts/Helvetica'
       const doc = new PDFDocument({
         size: 'A4',
         margin: 45,
         bufferPages: true,
+        ...(regularFontBuf ? { font: regularFontBuf as unknown as string } : {}),
       });
 
       const chunks: Buffer[] = [];
@@ -478,11 +500,9 @@ export async function generateContractReviewPdf(data: ContractReportData): Promi
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', (err) => reject(err));
 
-      // Safely register universal Amiri font if present on disk, otherwise gracefully fallback to Helvetica
-      const hasAmiriFonts = fs.existsSync(regularFontPath) && fs.existsSync(boldFontPath);
-      if (hasAmiriFonts) {
-        doc.registerFont('Amiri', regularFontPath);
-        doc.registerFont('Amiri-Bold', boldFontPath);
+      if (hasAmiriFonts && regularFontBuf && boldFontBuf) {
+        doc.registerFont('Amiri', regularFontBuf as unknown as string);
+        doc.registerFont('Amiri-Bold', boldFontBuf as unknown as string);
       }
 
       const isRtl = data.isRtl;
