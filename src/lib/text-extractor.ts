@@ -53,8 +53,7 @@ if (typeof (globalThis as any).DOMMatrix === 'undefined') {
       return copy;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    multiply(_other?: any) {
+    multiply() {
       const copy = new DOMMatrixPolyfill();
       Object.assign(copy, this);
       return copy;

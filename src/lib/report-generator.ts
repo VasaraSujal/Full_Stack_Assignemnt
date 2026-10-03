@@ -1,4 +1,5 @@
 import path from 'path';
+import fs from 'fs';
 import PDFDocument from 'pdfkit';
 import prisma from '@/lib/prisma';
 import { isArabicText } from '@/lib/arabic-support';
@@ -206,13 +207,12 @@ export async function assembleContractReportData(
   }
 
   // ---------------------------------------------------------------------------
-  // A. DOCUMENT SUMMARY
+  // A. INITIALIZE & HARVEST SAVED DATA
   // ---------------------------------------------------------------------------
-  if (sections.includes('summary')) {
-    // 1. Try to find an existing summary from conversation messages
-    let summaryText = '';
-    let isGenerated = false;
+  let summaryText = '';
+  let isGenerated = false;
 
+  if (sections.includes('summary')) {
     for (const msg of assistantMessages) {
       const lower = msg.content.toLowerCase();
       if (
@@ -225,67 +225,10 @@ export async function assembleContractReportData(
         break;
       }
     }
-
-    // 2. If no saved summary exists and Gemini is configured, generate a grounded summary
-    if (!summaryText && isGeminiConfigured() && document.pages.length > 0) {
-      try {
-        const gemini = getGeminiClient();
-        const excerpt = document.pages
-          .slice(0, 3)
-          .map((p) => `--- PAGE ${p.pageNumber} ---\n${p.extractedText.slice(0, 1500)}`)
-          .join('\n\n');
-
-        const prompt = isArabic
-          ? `أنت مساعد قانوني ذكي. قدم ملخصاً تنفيذياً موضوعياً وموجزاً لهذا العقد القانوني.
-اذكر أطراف العقد، والغرض الأساسي، ونطاق الالتزامات.
-أجب باللغة العربية بناءً فقط على النص المتاح أدناه دون أي اختلاق.
-
-<retrieved_evidence>
-${excerpt}
-</retrieved_evidence>`
-          : `You are an enterprise legal AI assistant. Provide an objective, concise executive summary of this contract.
-Identify the contracting parties, primary purpose, and general scope.
-Answer ONLY based on the provided contract excerpts without inventing facts.
-
-<retrieved_evidence>
-${excerpt}
-</retrieved_evidence>`;
-
-        const response = await gemini.models.generateContent({
-          model: DEFAULT_GEMINI_MODEL,
-          contents: prompt,
-        });
-
-        if (response.text && response.text.trim().length > 0) {
-          summaryText = response.text.trim();
-          isGenerated = true;
-        }
-      } catch {
-        // Fallback to preamble extraction
-      }
-    }
-
-    // 3. Fallback if Gemini unavailable
-    if (!summaryText) {
-      const page1 = document.pages[0]?.extractedText || '';
-      summaryText = isArabic
-        ? `ملخص مستند العقد: يغطي هذا المستند اتفاقية تجارية قانونية مؤلفة من ${document.pages.length} صفحات و${document.chunks.length} مقطع مفهرس.
-مقدمة الوثيقة: ${page1.slice(0, 350).replace(/\s+/g, ' ')}...`
-        : `Contract Overview: This agreement comprises ${document.pages.length} pages and ${document.chunks.length} indexed chunks.
-Preamble excerpt: ${page1.slice(0, 350).replace(/\s+/g, ' ')}...`;
-      isGenerated = false;
-    }
-
-    reportData.summary = { text: summaryText, isGenerated };
   }
 
-  // ---------------------------------------------------------------------------
-  // B. IDENTIFIED RISKS
-  // ---------------------------------------------------------------------------
+  const risks: ReportRiskItem[] = [];
   if (sections.includes('risks')) {
-    const risks: ReportRiskItem[] = [];
-
-    // Check comparisons for significance findings
     const allComparisons = [...document.sourceComparisons, ...document.targetComparisons];
     for (const comp of allComparisons) {
       const sev = comp.significance === 'CRITICAL' || comp.significance === 'HIGH' ? 'HIGH' : comp.significance === 'MEDIUM' ? 'MEDIUM' : 'LOW';
@@ -305,176 +248,157 @@ Preamble excerpt: ${page1.slice(0, 350).replace(/\s+/g, ' ')}...`;
         pageNumber: verification?.pageNumber,
       });
     }
-
-    // If no comparison risks exist and Gemini is configured, extract grounded legal risks
-    if (risks.length === 0 && isGeminiConfigured() && document.pages.length > 0) {
-      try {
-        const gemini = getGeminiClient();
-        const excerpt = document.pages
-          .slice(0, 4)
-          .map((p) => `--- PAGE ${p.pageNumber} ---\n${p.extractedText.slice(0, 1200)}`)
-          .join('\n\n');
-
-        const prompt = isArabic
-          ? `حلل مقتطفات العقد التالية وحدد المخاطر القانونية والالتزامات الحساسة.
-أجب بصيغة JSON فقط مصفوفة من العناصر كالتالي:
-[
-  {
-    "title": "عنوان المخاطرة",
-    "severity": "HIGH" | "MEDIUM" | "LOW",
-    "explanation": "شرح المخاطرة القانونية",
-    "clause": "اسم أو رقم المادة",
-    "supportingQuote": "اقتباس نصي حرفي دقيق من العقد يدعم هذا التحليل"
   }
-]
+
+  const obligations: ReportObligationItem[] = [];
+
+  // ---------------------------------------------------------------------------
+  // B. CONSOLIDATED AI GENERATION (Fast single prompt with timeout protection)
+  // ---------------------------------------------------------------------------
+  const needSummary = sections.includes('summary') && !summaryText;
+  const needRisks = sections.includes('risks') && risks.length === 0;
+  const needObligations = sections.includes('obligations') && obligations.length === 0;
+
+  if ((needSummary || needRisks || needObligations) && isGeminiConfigured() && document.pages.length > 0) {
+    try {
+      const gemini = getGeminiClient();
+      const excerpt = document.pages
+        .slice(0, 4)
+        .map((p) => `--- PAGE ${p.pageNumber} ---\n${p.extractedText.slice(0, 1200)}`)
+        .join('\n\n');
+
+      const promptParts: string[] = [];
+      if (needSummary) {
+        promptParts.push(
+          isArabic
+            ? `"summary": "ملخص تنفيذي موضوعي وموجز يحدد أطراف العقد والغرض الأساسي ونطاق الالتزامات"`
+            : `"summary": "Objective, concise executive summary identifying the contracting parties, primary purpose, and general scope"`
+        );
+      }
+      if (needRisks) {
+        promptParts.push(
+          isArabic
+            ? `"risks": [ { "title": "عنوان المخاطرة", "severity": "HIGH" | "MEDIUM" | "LOW", "explanation": "شرح المخاطرة القانونية", "clause": "المادة أو البند", "supportingQuote": "اقتباس نصي حرفي دقيق من العقد يدعم هذا التحليل" } ]`
+            : `"risks": [ { "title": "Risk Title", "severity": "HIGH" | "MEDIUM" | "LOW", "explanation": "Explanation of potential legal issue or exposure", "clause": "Clause or Section heading", "supportingQuote": "Exact verbatim quotation from the text supporting this finding" } ]`
+        );
+      }
+      if (needObligations) {
+        promptParts.push(
+          isArabic
+            ? `"obligations": [ { "title": "الالتزام التعاقدي", "responsibleParty": "الطرف المسؤول", "deadline": "الموعد أو المدة الزمنية إن وجدت", "clause": "المادة أو البند", "supportingQuote": "اقتباس نصي حرفي دقيق من العقد يثبت هذا الالتزام" } ]`
+            : `"obligations": [ { "title": "Obligation or requirement", "responsibleParty": "Party responsible (if identified in source)", "deadline": "Deadline, frequency, or condition (if stated in source)", "clause": "Clause or Section heading", "supportingQuote": "Exact verbatim quotation confirming this obligation" } ]`
+        );
+      }
+
+      const prompt = isArabic
+        ? `أنت مساعد قانوني ذكي متخصص في فحص العقود القانونية.
+حلل مقتطفات العقد التالية وأجب بصيغة JSON فقط متضمناً الحقول المطلوبة التالية:
+{
+  ${promptParts.join(',\n  ')}
+}
 قواعد صارمة:
-1. يجب أن يكون supportingQuote مقتبساً نصياً حرفياً وموجوداً بالفعل في النص.
-2. أجب بصيغة JSON فقط.
+1. أي supportingQuote يجب أن يكون اقتباساً نصياً حرفياً وموجوداً بالفعل في النص المرفق.
+2. أجب بصيغة JSON فقط دون أي شروح إضافية.
 
 <retrieved_evidence>
 ${excerpt}
 </retrieved_evidence>`
-          : `Analyze the following contract excerpts and identify potential legal risks or sensitive terms.
-Respond ONLY with a JSON array formatted as:
-[
-  {
-    "title": "Risk Title",
-    "severity": "HIGH" | "MEDIUM" | "LOW",
-    "explanation": "Explanation of potential legal issue or exposure",
-    "clause": "Clause or Section heading",
-    "supportingQuote": "Exact verbatim quotation from the text supporting this finding"
-  }
-]
+        : `You are an enterprise legal AI assistant analyzing a contract.
+Analyze the following contract excerpts and respond ONLY with a JSON object containing the requested fields:
+{
+  ${promptParts.join(',\n  ')}
+}
 Strict rules:
-1. supportingQuote MUST be an exact verbatim excerpt present in the text.
-2. Output JSON only.
+1. Every supportingQuote MUST be an exact verbatim quotation present in the provided text.
+2. Respond with valid JSON only without markdown or extra explanation.
 
 <retrieved_evidence>
 ${excerpt}
 </retrieved_evidence>`;
 
-        const response = await gemini.models.generateContent({
-          model: DEFAULT_GEMINI_MODEL,
-          contents: prompt,
-        });
+      const aiPromise = gemini.models.generateContent({
+        model: DEFAULT_GEMINI_MODEL,
+        contents: prompt,
+      });
 
-        let jsonText = response.text || '';
-        if (jsonText.startsWith('```json')) jsonText = jsonText.replace(/^```json\s*/, '').replace(/```\s*$/, '');
-        else if (jsonText.startsWith('```')) jsonText = jsonText.replace(/^```\s*/, '').replace(/```\s*$/, '');
+      // Strict 6500ms timeout guard to prevent serverless function gateway timeouts (status 504)
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('AI generation timed out')), 6500)
+      );
 
-        const parsed = JSON.parse(jsonText.trim());
-        if (Array.isArray(parsed)) {
-          for (let i = 0; i < parsed.length; i++) {
-            const item = parsed[i];
-            const quote = typeof item.supportingQuote === 'string' ? item.supportingQuote.trim() : '';
-            const verification = quote ? verifyQuoteAgainstPages(document.pages, quote) : null;
+      const response = await Promise.race([aiPromise, timeoutPromise]);
+      let jsonText = response.text || '';
+      if (jsonText.startsWith('```json')) jsonText = jsonText.replace(/^```json\s*/, '').replace(/```\s*$/, '');
+      else if (jsonText.startsWith('```')) jsonText = jsonText.replace(/^```\s*/, '').replace(/```\s*$/, '');
 
-            risks.push({
-              id: `risk-ai-${i + 1}`,
-              title: item.title || `Risk Finding ${i + 1}`,
-              severity: item.severity === 'HIGH' ? 'HIGH' : item.severity === 'LOW' ? 'LOW' : 'MEDIUM',
-              explanation: item.explanation || '',
-              clause: item.clause,
-              supportingQuote: quote || undefined,
-              citationStatus: verification?.status,
-              pageNumber: verification?.pageNumber,
-            });
-          }
-        }
-      } catch {
-        // Fallback handled below
+      const parsed = JSON.parse(jsonText.trim());
+
+      if (needSummary && typeof parsed.summary === 'string' && parsed.summary.trim().length > 0) {
+        summaryText = parsed.summary.trim();
+        isGenerated = true;
       }
-    }
 
+      if (needRisks && Array.isArray(parsed.risks)) {
+        for (let i = 0; i < parsed.risks.length; i++) {
+          const item = parsed.risks[i];
+          const quote = typeof item.supportingQuote === 'string' ? item.supportingQuote.trim() : '';
+          const verification = quote ? verifyQuoteAgainstPages(document.pages, quote) : null;
+          risks.push({
+            id: `risk-ai-${i + 1}`,
+            title: item.title || `Risk Finding ${i + 1}`,
+            severity: item.severity === 'HIGH' ? 'HIGH' : item.severity === 'LOW' ? 'LOW' : 'MEDIUM',
+            explanation: item.explanation || '',
+            clause: item.clause,
+            supportingQuote: quote || undefined,
+            citationStatus: verification?.status,
+            pageNumber: verification?.pageNumber,
+          });
+        }
+      }
+
+      if (needObligations && Array.isArray(parsed.obligations)) {
+        for (let i = 0; i < parsed.obligations.length; i++) {
+          const item = parsed.obligations[i];
+          const quote = typeof item.supportingQuote === 'string' ? item.supportingQuote.trim() : '';
+          const verification = quote ? verifyQuoteAgainstPages(document.pages, quote) : null;
+          obligations.push({
+            id: `oblg-${i + 1}`,
+            title: item.title || `Obligation ${i + 1}`,
+            responsibleParty: item.responsibleParty,
+            deadline: item.deadline,
+            clause: item.clause,
+            supportingQuote: quote || undefined,
+            citationStatus: verification?.status,
+            pageNumber: verification?.pageNumber,
+          });
+        }
+      }
+    } catch {
+      // Deterministic fallbacks handled below
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // C. DETERMINISTIC FALLBACKS
+  // ---------------------------------------------------------------------------
+  if (sections.includes('summary')) {
+    if (!summaryText) {
+      const page1 = document.pages[0]?.extractedText || '';
+      summaryText = isArabic
+        ? `ملخص مستند العقد: يغطي هذا المستند اتفاقية تجارية قانونية مؤلفة من ${document.pages.length} صفحات و${document.chunks.length} مقطع مفهرس.
+مقدمة الوثيقة: ${page1.slice(0, 350).replace(/\s+/g, ' ')}...`
+        : `Contract Overview: This agreement comprises ${document.pages.length} pages and ${document.chunks.length} indexed chunks.
+Preamble excerpt: ${page1.slice(0, 350).replace(/\s+/g, ' ')}...`;
+      isGenerated = false;
+    }
+    reportData.summary = { text: summaryText, isGenerated };
+  }
+
+  if (sections.includes('risks')) {
     reportData.risks = risks;
   }
 
-  // ---------------------------------------------------------------------------
-  // C. OBLIGATIONS
-  // ---------------------------------------------------------------------------
   if (sections.includes('obligations')) {
-    const obligations: ReportObligationItem[] = [];
-
-    // If Gemini is configured and we have pages, extract grounded contractual obligations
-    if (isGeminiConfigured() && document.pages.length > 0) {
-      try {
-        const gemini = getGeminiClient();
-        const excerpt = document.pages
-          .slice(0, 4)
-          .map((p) => `--- PAGE ${p.pageNumber} ---\n${p.extractedText.slice(0, 1200)}`)
-          .join('\n\n');
-
-        const prompt = isArabic
-          ? `استخرج الالتزامات التعاقدية الرئيسية من مقتطفات العقد أدناه.
-أجب بصيغة JSON فقط كالتالي:
-[
-  {
-    "title": "الالتزام التعاقدي",
-    "responsibleParty": "الطرف المسؤول",
-    "deadline": "الموعد أو المدة الزمنية إن وجدت",
-    "clause": "المادة أو البند",
-    "supportingQuote": "اقتباس نصي حرفي دقيق من العقد يثبت هذا الالتزام"
-  }
-]
-قواعد صارمة:
-1. يجب أن يكون supportingQuote مقتبساً نصياً حرفياً من النص المتاح فقط.
-2. أجب بصيغة JSON فقط.
-
-<retrieved_evidence>
-${excerpt}
-</retrieved_evidence>`
-          : `Extract key contractual obligations from the contract excerpts below.
-Respond ONLY with a JSON array:
-[
-  {
-    "title": "Obligation or requirement",
-    "responsibleParty": "Party responsible (if identified in source)",
-    "deadline": "Deadline, frequency, or condition (if stated in source)",
-    "clause": "Clause or Section heading",
-    "supportingQuote": "Exact verbatim quotation confirming this obligation"
-  }
-]
-Strict rules:
-1. supportingQuote MUST be an exact verbatim excerpt from the text.
-2. Output JSON only.
-
-<retrieved_evidence>
-${excerpt}
-</retrieved_evidence>`;
-
-        const response = await gemini.models.generateContent({
-          model: DEFAULT_GEMINI_MODEL,
-          contents: prompt,
-        });
-
-        let jsonText = response.text || '';
-        if (jsonText.startsWith('```json')) jsonText = jsonText.replace(/^```json\s*/, '').replace(/```\s*$/, '');
-        else if (jsonText.startsWith('```')) jsonText = jsonText.replace(/^```\s*/, '').replace(/```\s*$/, '');
-
-        const parsed = JSON.parse(jsonText.trim());
-        if (Array.isArray(parsed)) {
-          for (let i = 0; i < parsed.length; i++) {
-            const item = parsed[i];
-            const quote = typeof item.supportingQuote === 'string' ? item.supportingQuote.trim() : '';
-            const verification = quote ? verifyQuoteAgainstPages(document.pages, quote) : null;
-
-            obligations.push({
-              id: `oblg-${i + 1}`,
-              title: item.title || `Obligation ${i + 1}`,
-              responsibleParty: item.responsibleParty,
-              deadline: item.deadline,
-              clause: item.clause,
-              supportingQuote: quote || undefined,
-              citationStatus: verification?.status,
-              pageNumber: verification?.pageNumber,
-            });
-          }
-        }
-      } catch {
-        // Handled below
-      }
-    }
-
     reportData.obligations = obligations;
   }
 
@@ -554,15 +478,18 @@ export async function generateContractReviewPdf(data: ContractReportData): Promi
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', (err) => reject(err));
 
-      // Register universal Amiri font (contains full Arabic + full Latin/English glyphs)
-      doc.registerFont('Amiri', regularFontPath);
-      doc.registerFont('Amiri-Bold', boldFontPath);
+      // Safely register universal Amiri font if present on disk, otherwise gracefully fallback to Helvetica
+      const hasAmiriFonts = fs.existsSync(regularFontPath) && fs.existsSync(boldFontPath);
+      if (hasAmiriFonts) {
+        doc.registerFont('Amiri', regularFontPath);
+        doc.registerFont('Amiri-Bold', boldFontPath);
+      }
 
       const isRtl = data.isRtl;
-      const primaryFont = 'Amiri';
-      const boldFont = 'Amiri-Bold';
+      const primaryFont = hasAmiriFonts ? 'Amiri' : 'Helvetica';
+      const boldFont = hasAmiriFonts ? 'Amiri-Bold' : 'Helvetica-Bold';
       const textAlign = isRtl ? 'right' : 'left';
-      const textFeatures: PDFKit.Mixins.OpenTypeFeatures[] = ['liga', 'init', 'medi', 'fina'];
+      const textFeatures: PDFKit.Mixins.OpenTypeFeatures[] = hasAmiriFonts ? ['liga', 'init', 'medi', 'fina'] : [];
 
       const pageWidth = doc.page.width;
       const margin = 45;
