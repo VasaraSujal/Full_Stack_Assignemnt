@@ -49,21 +49,28 @@ export interface CitationVerificationResult {
   allVerified: boolean;
 }
 
+import { ARABIC_DIACRITIC_CHAR_REGEX, normalizeArabicText } from './arabic-support';
+
 /**
- * Normalize whitespace, newlines, and quotes for comparison
+ * Normalize whitespace, newlines, quotes, and Arabic diacritics for comparison
  */
 export function normalizeTextForComparison(text: string): string {
   if (!text || typeof text !== 'string') return '';
-  return text
+  let cleaned = text
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
+
+  // Normalize Arabic diacritics (tashkeel), tatweel, and letter forms
+  cleaned = normalizeArabicText(cleaned);
+  return cleaned;
 }
 
 /**
  * Build a normalized string with a 1-to-1 character index map back to raw source text
+ * Resiliently handles whitespace, quotes, and Arabic diacritics/tashkeel
  */
 export function buildNormalizedIndexMap(rawText: string): { normalizedText: string; indexMap: number[] } {
   let normalizedText = '';
@@ -72,6 +79,12 @@ export function buildNormalizedIndexMap(rawText: string): { normalizedText: stri
 
   for (let i = 0; i < rawText.length; i++) {
     const ch = rawText[i];
+
+    // Skip Arabic diacritics (tashkeel) and tatweel during normalized comparison
+    if (ARABIC_DIACRITIC_CHAR_REGEX.test(ch)) {
+      continue;
+    }
+
     if (/\s/.test(ch)) {
       if (!inWhitespace && normalizedText.length > 0) {
         normalizedText += ' ';
@@ -83,6 +96,11 @@ export function buildNormalizedIndexMap(rawText: string): { normalizedText: stri
       let cleanChar = ch.toLowerCase();
       if (cleanChar === '\u2018' || cleanChar === '\u2019') cleanChar = "'";
       if (cleanChar === '\u201C' || cleanChar === '\u201D') cleanChar = '"';
+      // Normalize Arabic Alef variants to bare Alef for robust matching
+      if (/[أإآٱ]/.test(cleanChar)) cleanChar = 'ا';
+      if (cleanChar === 'ة') cleanChar = 'ه';
+      if (cleanChar === 'ى') cleanChar = 'ي';
+
       normalizedText += cleanChar;
       indexMap.push(i);
     }

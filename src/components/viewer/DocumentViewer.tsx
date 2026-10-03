@@ -10,6 +10,7 @@ import {
   AlertTriangleIcon,
   ShieldCheckIcon,
 } from '@/components/ui/Icons';
+import { isArabicText } from '@/lib/arabic-support';
 
 interface DocumentViewerProps {
   documentId: string;
@@ -26,6 +27,7 @@ export function DocumentViewer({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [rtlMode, setRtlMode] = useState<'auto' | 'rtl' | 'ltr'>('auto');
   const highlightRef = useRef<HTMLElement | null>(null);
 
   // Load document details
@@ -76,6 +78,9 @@ export function DocumentViewer({
   }, [docDetail, currentPage]);
 
   const totalPages = docDetail?.pages?.length || 1;
+  const pageText = activePage?.extractedText || '';
+  const detectedArabic = useMemo(() => isArabicText(pageText), [pageText]);
+  const isRtl = rtlMode === 'rtl' ? true : rtlMode === 'ltr' ? false : detectedArabic;
 
   // Render page text with citation highlight
   const renderHighlightedText = (text: string) => {
@@ -233,27 +238,38 @@ export function DocumentViewer({
             <FileTextIcon size={16} />
           </div>
           <div className="min-w-0">
-            <h2
-              style={{
-                fontSize: '1rem',
-                fontWeight: 700,
-                color: 'var(--text-primary)',
-                lineHeight: 1.3,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-              title={docDetail.originalFilename}
-            >
-              {docDetail.originalFilename}
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2
+                style={{
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  lineHeight: 1.3,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+                title={docDetail.originalFilename}
+              >
+                {docDetail.originalFilename}
+              </h2>
+              {detectedArabic && (
+                <span
+                  className="status-pill status-verified"
+                  style={{ fontSize: '0.6875rem', padding: '1px 6px', fontWeight: 600 }}
+                  title="Arabic script detected"
+                >
+                  🌐 العربية RTL
+                </span>
+              )}
+            </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1px' }}>
               {totalPages} page{totalPages === 1 ? '' : 's'} · {docDetail.counts.chunks} chunks indexed
             </div>
           </div>
         </div>
 
-        {/* Page Navigator & Close */}
+        {/* Page Navigator, RTL Toggle & Close */}
         <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
           <div
             className="flex items-center gap-1.5 p-1 rounded-md"
@@ -288,6 +304,23 @@ export function DocumentViewer({
             >
               <span>Next</span>
               <ChevronRightIcon size={15} />
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setRtlMode((m) => (m === 'rtl' ? 'ltr' : 'rtl'))}
+              title="Toggle Right-To-Left (RTL) reading mode"
+              style={{
+                height: '28px',
+                padding: '0 8px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: isRtl ? 'var(--primary-blue)' : 'var(--text-secondary)',
+                backgroundColor: isRtl ? 'var(--primary-blue-surface)' : 'transparent',
+              }}
+            >
+              <span>{isRtl ? 'RTL' : 'LTR'}</span>
             </button>
           </div>
 
@@ -326,7 +359,18 @@ export function DocumentViewer({
               </p>
             </div>
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#047857', fontFamily: 'monospace', maxWidth: '340px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div
+            dir={isArabicText(activeCitation.quotedText) ? 'rtl' : 'ltr'}
+            style={{
+              fontSize: '0.75rem',
+              color: '#047857',
+              fontFamily: isArabicText(activeCitation.quotedText) ? "'Noto Naskh Arabic', sans-serif" : 'monospace',
+              maxWidth: '340px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
             Quote: &ldquo;{activeCitation.quotedText}&rdquo;
           </div>
         </div>
@@ -335,15 +379,19 @@ export function DocumentViewer({
       {/* 3. Document Page Reader Body */}
       <div
         className="card"
+        dir={isRtl ? 'rtl' : 'ltr'}
         style={{
           padding: '28px 32px',
           backgroundColor: '#FFFFFF',
           minHeight: '520px',
           maxHeight: 'calc(100vh - 190px)',
           overflowY: 'auto',
-          fontSize: '0.9375rem',
-          lineHeight: '1.75',
-          fontFamily: "'Inter', sans-serif",
+          fontSize: isRtl ? '1.05rem' : '0.9375rem',
+          lineHeight: isRtl ? '2' : '1.75',
+          fontFamily: isRtl
+            ? "'Noto Naskh Arabic', 'Amiri', 'Segoe UI', Tahoma, sans-serif"
+            : "'Inter', sans-serif",
+          textAlign: isRtl ? 'right' : 'left',
           whiteSpace: 'pre-wrap',
           color: 'var(--text-primary)',
           boxShadow: 'var(--shadow-card)',

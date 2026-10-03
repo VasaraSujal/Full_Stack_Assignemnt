@@ -29,6 +29,7 @@ import {
   XIcon,
   ShieldCheckIcon,
 } from '@/components/ui/Icons';
+import { isArabicText } from '@/lib/arabic-support';
 
 export interface AgenticExecutionMetrics {
   totalRounds?: number;
@@ -723,7 +724,16 @@ export function ResearchWorkspace({
                         boxShadow: 'var(--shadow-card)',
                       }}
                     >
-                      <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                      <div
+                        dir={isArabicText(msg.content) ? 'rtl' : 'ltr'}
+                        style={{
+                          whiteSpace: 'pre-wrap',
+                          textAlign: isArabicText(msg.content) ? 'right' : 'left',
+                          fontFamily: isArabicText(msg.content) ? "'Noto Naskh Arabic', 'Amiri', sans-serif" : undefined,
+                        }}
+                      >
+                        {msg.content}
+                      </div>
 
                       {/* Verified Citations Pills */}
                       {msg.citations && msg.citations.length > 0 && (
@@ -826,7 +836,18 @@ export function ResearchWorkspace({
 
                 {/* Streamed Answer Content */}
                 {streamedAnswer && (
-                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', color: 'var(--text-primary)', fontSize: '0.9375rem', paddingTop: '4px' }}>
+                  <div
+                    dir={isArabicText(streamedAnswer) ? 'rtl' : 'ltr'}
+                    style={{
+                      whiteSpace: 'pre-wrap',
+                      lineHeight: '1.6',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.9375rem',
+                      paddingTop: '4px',
+                      textAlign: isArabicText(streamedAnswer) ? 'right' : 'left',
+                      fontFamily: isArabicText(streamedAnswer) ? "'Noto Naskh Arabic', 'Amiri', sans-serif" : undefined,
+                    }}
+                  >
                     {streamedAnswer}
                   </div>
                 )}
@@ -930,6 +951,7 @@ export function ResearchWorkspace({
             <div className="flex-1 relative">
               <textarea
                 rows={2}
+                dir={isArabicText(inputQuestion) ? 'rtl' : 'ltr'}
                 placeholder={
                   researchMode === 'agentic'
                     ? 'Ask a legal research question across attached contracts... (Press Enter to send, Shift+Enter for new line)'
@@ -945,6 +967,8 @@ export function ResearchWorkspace({
                   padding: '10px 14px',
                   fontSize: '0.9375rem',
                   height: '64px',
+                  textAlign: isArabicText(inputQuestion) ? 'right' : 'left',
+                  fontFamily: isArabicText(inputQuestion) ? "'Noto Naskh Arabic', 'Amiri', sans-serif" : undefined,
                 }}
               />
             </div>

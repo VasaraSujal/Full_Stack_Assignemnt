@@ -9,7 +9,7 @@
 [![Prisma ORM](https://img.shields.io/badge/Prisma-6.4.1-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-336791?style=flat-square&logo=postgresql)](https://supabase.com/)
 [![Google Gemini](https://img.shields.io/badge/Google%20Gemini-2.5%20Flash-4285F4?style=flat-square&logo=google)](https://aistudio.google.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-141%2F141%20Passed-4BB543?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-150%2F150%20Passed-4BB543?style=flat-square&logo=vitest)](https://vitest.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
 *An enterprise AI contract analysis and citation verification platform featuring multi-format document ingestion (PDF/DOCX), deterministic character-offset chunking, grounded Q&A, autonomous multi-round agentic research, and dual-sided version comparison.*
@@ -181,6 +181,7 @@ User Action           API Layer                 Processing Pipeline             
 | **Multi-Doc Questions** | Cross-document questions with source attribution | ✅ **100% Complete** | Session attachments isolate target documents; citation chips attribute source filenames. |
 | **Contract Comparison** | Clause-level difference detection & risk filtering | ✅ **100% Complete** | Dual-sided quotation verification across 2–5 versions with `HIGH`, `MEDIUM`, `LOW` filters. |
 | **Agentic Research** | Autonomous multi-round tool investigation loop | ✅ **100% Complete** | Chosen Part C challenge: `search_document`, `get_section`, `list_clauses` with live timeline. |
+| **Arabic Support (Bonus)** | Arabic text extraction, RTL layout & diacritic matching | ✅ **100% Complete** | Automatic Arabic script detection, interactive RTL/LTR toggle, Tashkeel diacritic normalization, and verbatim citation matching. |
 
 ---
 
@@ -481,10 +482,10 @@ Open [http://localhost:3000](http://localhost:3000) to access the application.
 
 ## 12. Automated Quality Gates & Test Coverage
 
-All 141 tests across 17 test suites pass with **100% success**:
+All 150 tests across 18 test suites pass with **100% success**:
 
 ```bash
-# Run complete test suite (141 tests)
+# Run complete test suite (150 tests)
 npm test
 
 # Run Next.js ESLint
@@ -503,10 +504,11 @@ npm run build
 ### Test Suite Summary
 
 ```
- Test Files  17 passed (17)
-      Tests  141 passed (141)
+ Test Files  18 passed (18)
+      Tests  150 passed (150)
    Duration  ~19.04s
 
+ ✓ tests/arabic-support.test.ts (9 tests)                 - Arabic script detection & diacritic normalization
  ✓ tests/phase6-acceptance-reliability.test.ts (13 tests) - Adversarial verification & bounds
  ✓ tests/agentic-research-audit.test.ts (11 tests)        - Autonomous tool execution & SSE
  ✓ tests/comparison-audit.test.ts (11 tests)              - Dual-sided comparison verifier
