@@ -28,7 +28,6 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@rolldown/binding-win32-x64-msvc": "^1.2.12",
     "@types/node": "^22.13.4",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19.0.10",
