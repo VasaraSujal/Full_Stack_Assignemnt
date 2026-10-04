@@ -165,7 +165,7 @@ export function Sidebar({
                   display: 'inline-block',
                 }}
               />
-              <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Gemini 2.5 Flash</span>
+              <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Gemini 3.8 Flash</span>
             </span>
             <span style={{ fontWeight: 500 }}>v1.0</span>
           </div>

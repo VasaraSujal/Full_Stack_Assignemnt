@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma';
 import { DocumentStatus } from '@prisma/client';
-import { getGeminiClient, DEFAULT_GEMINI_MODEL, isGeminiConfigured } from './gemini';
+import { getGeminiClient, DEFAULT_GEMINI_MODEL, isGeminiConfigured, GEMINI_FALLBACK_MODELS, isTransientGeminiError } from './gemini';
 import {
   AGENTIC_RESEARCH_TOOLS,
   dispatchAgenticTool,
@@ -165,16 +165,13 @@ export async function performAgenticResearch(
 
   callbacks.onStatus?.('started', 'Establishing document scope and initializing research agent...');
 
-  // 4. Initialize Gemini Chat Session with Tools
+  // 4. Candidate Models for automatic fallback on 503 high-demand or 429 quota spikes
+  const candidateModels = [
+    modelName,
+    ...GEMINI_FALLBACK_MODELS.filter((m) => m !== modelName),
+  ];
+
   const ai = getGeminiClient();
-  const chat = ai.chats.create({
-    model: modelName,
-    config: {
-      systemInstruction: AGENTIC_RESEARCH_SYSTEM_INSTRUCTION,
-      tools: AGENTIC_RESEARCH_TOOLS,
-      temperature: 0.1,
-    },
-  });
 
   const toolExecutions: Array<{
     toolName: string;
@@ -199,59 +196,81 @@ export async function performAgenticResearch(
   let finalAnswer: AgenticResearchFinalAnswer | null = null;
   let completedRoundsCount = 0;
   let duplicateLimitHit = false;
+  let activeModel = modelName;
 
-  let currentPrompt: string | Record<string, unknown>[] =
-    `Permitted Documents:\n${completedDocs
-      .map((d) => `- Document ID: "${d.id}", Name: "${d.originalFilename}"`)
-      .join('\n')}\n\nUSER QUESTION: ${cleanQuestion}\n\nBegin your investigation by choosing an appropriate research tool.`;
+  for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
+    activeModel = candidateModels[mIdx];
+    const chat = ai.chats.create({
+      model: activeModel,
+      config: {
+        systemInstruction: AGENTIC_RESEARCH_SYSTEM_INSTRUCTION,
+        tools: AGENTIC_RESEARCH_TOOLS,
+        temperature: 0.1,
+      },
+    });
 
-  // 5. Multi-Round Agent Loop (Max 5 rounds)
-  for (let round = 1; round <= maxRounds; round++) {
-    const roundStartTime = Date.now();
-    completedRoundsCount = round;
+    let currentPrompt: string | Record<string, unknown>[] =
+      `Permitted Documents:\n${completedDocs
+        .map((d) => `- Document ID: "${d.id}", Name: "${d.originalFilename}"`)
+        .join('\n')}\n\nUSER QUESTION: ${cleanQuestion}\n\nBegin your investigation by choosing an appropriate research tool.`;
 
-    if (options.signal?.aborted) {
-      throw new Error('Agentic research was cancelled.');
-    }
+    let modelFailedOnFirstRound = false;
 
-    callbacks.onStatus?.(
-      'investigating',
-      round === 1 ? 'Planning initial document search...' : `Conducting research round ${round}...`
-    );
+    // 5. Multi-Round Agent Loop (Max 5 rounds)
+    for (let round = 1; round <= maxRounds; round++) {
+      const roundStartTime = Date.now();
+      completedRoundsCount = round;
 
-    let response;
-    try {
-      response = await chat.sendMessage({
-        message: currentPrompt,
-      });
-    } catch (modelErr: unknown) {
-      // If model fails after we already have some tool evidence, exit to synthesis fallback
-      if (totalToolExecutions > 0) {
-        callbacks.onStatus?.('synthesizing', 'Model encountered an error; synthesizing collected evidence...');
-        finalAnswer = {
-          answer: `Research concluded with partial evidence collected (${totalToolExecutions} tool executions). Due to a temporary processing interruption, review the collected excerpts directly.`,
-          citations: [],
-          limitations: [
-            'Investigation ended early due to model response interruption.',
-            'Findings are bounded strictly to retrieved tool passages.',
-          ],
-          hasSufficientEvidence: false,
-        };
+      if (options.signal?.aborted) {
+        throw new Error('Agentic research was cancelled.');
+      }
+
+      callbacks.onStatus?.(
+        'investigating',
+        round === 1 ? 'Planning initial document search...' : `Conducting research round ${round}...`
+      );
+
+      let response;
+      try {
+        response = await chat.sendMessage({
+          message: currentPrompt,
+        });
+      } catch (modelErr: unknown) {
+        // If 503 or 429 transient error on round 1 with 0 tool executions, try next candidate model
+        if (round === 1 && totalToolExecutions === 0 && isTransientGeminiError(modelErr) && mIdx < candidateModels.length - 1) {
+          console.warn(`[Agentic Research] Model "${activeModel}" returned transient error (503/429). Retrying with next model "${candidateModels[mIdx + 1]}"...`);
+          callbacks.onStatus?.('investigating', `Model ${activeModel} busy; switching to fallback engine...`);
+          modelFailedOnFirstRound = true;
+          break;
+        }
+
+        // If model fails after we already have some tool evidence, exit to synthesis fallback
+        if (totalToolExecutions > 0) {
+          callbacks.onStatus?.('synthesizing', 'Model encountered an error; synthesizing collected evidence...');
+          finalAnswer = {
+            answer: `Research concluded with partial evidence collected (${totalToolExecutions} tool executions). Due to a temporary processing interruption, review the collected excerpts directly.`,
+            citations: [],
+            limitations: [
+              'Investigation ended early due to model response interruption.',
+              'Findings are bounded strictly to retrieved tool passages.',
+            ],
+            hasSufficientEvidence: false,
+          };
+          roundDurations.push({ round, durationMs: Date.now() - roundStartTime });
+          break;
+        }
+        throw modelErr;
+      }
+
+      const functionCalls = response.functionCalls || [];
+
+      // If Gemini decided not to call any tools or returned the final answer
+      if (!functionCalls || functionCalls.length === 0) {
+        const responseText = response.text || '';
+        finalAnswer = parseAgenticFinalAnswer(responseText);
         roundDurations.push({ round, durationMs: Date.now() - roundStartTime });
         break;
       }
-      throw modelErr;
-    }
-
-    const functionCalls = response.functionCalls || [];
-
-    // If Gemini decided not to call any tools or returned the final answer
-    if (!functionCalls || functionCalls.length === 0) {
-      const responseText = response.text || '';
-      finalAnswer = parseAgenticFinalAnswer(responseText);
-      roundDurations.push({ round, durationMs: Date.now() - roundStartTime });
-      break;
-    }
 
     // Process tool calls (limit to max 2 per round)
     const toolCallsToExecute = functionCalls.slice(0, 2);
@@ -349,6 +368,13 @@ export async function performAgenticResearch(
     }
   }
 
+  if (modelFailedOnFirstRound) {
+    continue;
+  }
+
+  break;
+}
+
   // 6. If loop exited without final answer (e.g. hit max rounds or duplicate limit), request conclusion
   if (!finalAnswer) {
     callbacks.onStatus?.('synthesizing', 'Synthesizing evidence collected during research...');
@@ -401,6 +427,6 @@ export async function performAgenticResearch(
       roundDurations,
       toolExecutionBreakdown: toolExecutions,
     },
-    model: modelName,
+    model: activeModel,
   };
 }

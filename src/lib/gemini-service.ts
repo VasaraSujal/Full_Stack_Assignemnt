@@ -1,4 +1,4 @@
-import { getGeminiClient, DEFAULT_GEMINI_MODEL, isGeminiConfigured } from './gemini';
+import { getGeminiClient, DEFAULT_GEMINI_MODEL, isGeminiConfigured, executeWithModelFallback } from './gemini';
 import { retrieveRelevantChunks } from './retrieval';
 import {
   CONTRACT_QA_SYSTEM_INSTRUCTION,
@@ -101,17 +101,21 @@ export async function generateContractAnswer(
   const contextXml = formatRetrievedContext(retrieval.chunks);
   const prompt = `${contextXml}\n\nUSER QUESTION: ${userQuestion}\n\nProvide your analysis strictly adhering to the JSON schema.`;
 
-  // 5. Call Gemini
+  // 5. Call Gemini with automatic model fallback on 503 high-demand or 429 quota spikes
   const ai = getGeminiClient();
-  const response = await ai.models.generateContent({
-    model: modelName,
-    contents: prompt,
-    config: {
-      systemInstruction: CONTRACT_QA_SYSTEM_INSTRUCTION,
-      responseMimeType: 'application/json',
-      temperature: 0.1, // Low temperature for factual precision and grounded citations
-    },
-  });
+  const { result: response, usedModel } = await executeWithModelFallback(
+    modelName,
+    (m) =>
+      ai.models.generateContent({
+        model: m,
+        contents: prompt,
+        config: {
+          systemInstruction: CONTRACT_QA_SYSTEM_INSTRUCTION,
+          responseMimeType: 'application/json',
+          temperature: 0.1, // Low temperature for factual precision and grounded citations
+        },
+      })
+  );
 
   const responseText = response.text || '';
   const parsedResponse = parseGeminiJson(responseText);
@@ -128,7 +132,7 @@ export async function generateContractAnswer(
     hasSufficientEvidence: parsedResponse.hasSufficientEvidence,
     retrievedChunksCount: retrieval.chunks.length,
     retrievalSuccess: true,
-    model: modelName,
+    model: usedModel,
     verificationSummary: {
       totalCandidates: verificationResult.totalCandidates,
       verifiedCount: verificationResult.verifiedCount,

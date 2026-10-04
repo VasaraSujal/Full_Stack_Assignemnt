@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma';
 import { DocumentStatus } from '@prisma/client';
-import { getGeminiClient, DEFAULT_GEMINI_MODEL, isGeminiConfigured } from './gemini';
+import { getGeminiClient, DEFAULT_GEMINI_MODEL, isGeminiConfigured, executeWithModelFallback } from './gemini';
 import { retrieveMultiDocumentChunks } from './retrieval';
 import {
   COMPARISON_SYSTEM_INSTRUCTION,
@@ -147,15 +147,19 @@ export async function compareContracts(
   const prompt = `${contextXml}\n\nCOMPARISON QUESTION: ${effectiveQuery}\n\nProvide your detailed structured comparison strictly adhering to the JSON schema.`;
 
   const ai = getGeminiClient();
-  const response = await ai.models.generateContent({
-    model: modelName,
-    contents: prompt,
-    config: {
-      systemInstruction: COMPARISON_SYSTEM_INSTRUCTION,
-      responseMimeType: 'application/json',
-      temperature: 0.1,
-    },
-  });
+  const { result: response, usedModel } = await executeWithModelFallback(
+    modelName,
+    (m) =>
+      ai.models.generateContent({
+        model: m,
+        contents: prompt,
+        config: {
+          systemInstruction: COMPARISON_SYSTEM_INSTRUCTION,
+          responseMimeType: 'application/json',
+          temperature: 0.1,
+        },
+      })
+  );
 
   const responseText = response.text || '';
   const parsedResponse = parseGeminiComparisonJson(responseText);
@@ -200,6 +204,6 @@ export async function compareContracts(
     verificationSummary: verificationResult.summary,
     limitations: parsedResponse.limitations || [],
     hasSufficientEvidence: parsedResponse.hasSufficientEvidence ?? verificationResult.changes.length > 0,
-    model: modelName,
+    model: usedModel,
   };
 }
