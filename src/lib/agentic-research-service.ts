@@ -197,6 +197,7 @@ export async function performAgenticResearch(
   let completedRoundsCount = 0;
   let duplicateLimitHit = false;
   let activeModel = modelName;
+  let chatSession: ReturnType<typeof ai.chats.create> | null = null;
 
   for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
     activeModel = candidateModels[mIdx];
@@ -208,6 +209,7 @@ export async function performAgenticResearch(
         temperature: 0.1,
       },
     });
+    chatSession = chat;
 
     let currentPrompt: string | Record<string, unknown>[] =
       `Permitted Documents:\n${completedDocs
@@ -379,11 +381,15 @@ export async function performAgenticResearch(
   if (!finalAnswer) {
     callbacks.onStatus?.('synthesizing', 'Synthesizing evidence collected during research...');
     try {
-      const concludingResponse = await chat.sendMessage({
-        message:
-          'Research complete. Please synthesize your final evidence-grounded answer based strictly on the collected document excerpts and return it in valid JSON format according to the schema.',
-      });
-      finalAnswer = parseAgenticFinalAnswer(concludingResponse.text || '');
+      if (chatSession) {
+        const concludingResponse = await chatSession.sendMessage({
+          message:
+            'Research complete. Please synthesize your final evidence-grounded answer based strictly on the collected document excerpts and return it in valid JSON format according to the schema.',
+        });
+        finalAnswer = parseAgenticFinalAnswer(concludingResponse.text || '');
+      } else {
+        throw new Error('No active chat session.');
+      }
     } catch {
       // Graceful fallback synthesis if model synthesis fails
       finalAnswer = {
