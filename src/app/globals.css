@@ -826,6 +826,16 @@ textarea:focus {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ─── Display & Visibility Utilities ─── */
+.hidden { display: none !important; }
+.block { display: block !important; }
+.inline-block { display: inline-block !important; }
+.inline-flex { display: inline-flex !important; }
+.overflow-hidden { overflow: hidden !important; }
+.overflow-x-auto { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+.overflow-y-auto { overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
+.word-break { word-break: break-word; overflow-wrap: anywhere; }
+
 /* ─── Responsive Utilities ─── */
 .mobile-only {
   display: none !important;
@@ -835,25 +845,124 @@ textarea:focus {
   display: flex !important;
 }
 
-@media (max-width: 1024px) {
-  .dashboard-grid-compact {
+.tablet-down-only {
+  display: none !important;
+}
+
+/* ─── Table Responsive Scrolling ─── */
+.table-responsive-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-lg);
+}
+
+.table-dense {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 640px;
+}
+
+/* ─── Research Workspace Responsive Layout ─── */
+.research-layout {
+  display: flex;
+  flex: 1;
+  gap: 16px;
+  min-height: 0;
+  align-items: stretch;
+  height: calc(100vh - var(--header-height) - 100px);
+  min-height: 520px;
+}
+
+.research-sessions-panel {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.research-chat-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.quick-prompts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* ─── Comparison Workspace Responsive Layout ─── */
+.compare-quotes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* ─── Export Modal Sections Grid ─── */
+.export-sections-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 520px) {
+  .export-sections-grid {
     grid-template-columns: 1fr;
-  }
-  .metrics-grid-dense {
-    grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 768px) {
+/* ─── Document Viewer Paper Sheet ─── */
+.viewer-paper-sheet {
+  background-color: #FFFFFF;
+  box-shadow: var(--shadow-md);
+  max-width: 920px;
+  margin: 0 auto;
+  width: 100%;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 32px 36px;
+  min-height: 560px;
+}
+
+/* ─── Media Query: Laptops & Tablets Landscape (<= 1024px) ─── */
+@media (max-width: 1024px) {
+  .dashboard-grid-compact {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .metrics-grid-dense {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .dashboard-body {
+    padding: 20px 20px;
+  }
+}
+
+/* ─── Media Query: Tablets Portrait (<= 960px) ─── */
+@media (max-width: 960px) {
   :root {
     --sidebar-width: 280px;
   }
 
   .dashboard-main {
     margin-left: 0;
+    width: 100%;
   }
 
   .mobile-only {
+    display: inline-flex !important;
+  }
+
+  .tablet-down-only {
     display: inline-flex !important;
   }
 
@@ -868,6 +977,7 @@ textarea:focus {
     bottom: 0;
     transform: translateX(-100%);
     box-shadow: var(--shadow-lg);
+    z-index: 50;
   }
 
   .sidebar-container.mobile-open {
@@ -875,21 +985,151 @@ textarea:focus {
   }
 
   .dashboard-header {
-    padding: 0 16px;
+    padding: 0 18px;
+  }
+
+  .research-layout {
+    height: auto;
+    min-height: calc(100vh - var(--header-height) - 40px);
+    flex-direction: column;
+  }
+
+  .research-sessions-panel {
+    display: none;
+  }
+
+  .research-sessions-panel.mobile-drawer-open {
+    display: flex !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 300px;
+    max-width: 86vw;
+    z-index: 60;
+    box-shadow: var(--shadow-lg);
+    background-color: var(--surface-primary);
+  }
+}
+
+/* ─── Media Query: Mobile Devices (<= 768px) ─── */
+@media (max-width: 768px) {
+  .dashboard-header {
+    padding: 0 14px;
+    height: 54px;
   }
 
   .dashboard-body {
-    padding: 16px;
-  }
-
-  .metrics-grid-dense {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    padding: 14px 12px;
   }
 
   .welcome-card-clean {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
+    align-items: stretch;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .welcome-card-actions {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .welcome-card-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .workspace-action-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .workspace-action-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .workspace-action-group .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .viewer-paper-sheet {
+    padding: 18px 14px;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+  }
+
+  .compare-quotes-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .modal-dialog {
+    max-width: 95vw;
+    max-height: 92vh;
+    margin: 10px auto;
   }
 }
+
+/* ─── Media Query: Small Mobile Devices (<= 600px) ─── */
+@media (max-width: 600px) {
+  .metrics-grid-dense {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .quick-prompts-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .header-title {
+    font-size: 1rem;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+
+  .card-header .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Prevent auto-zoom on iOS when tapping inputs */
+  input[type="text"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  .chat-input-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .chat-input-bar .btn {
+    width: 100%;
+    height: 44px !important;
+    justify-content: center;
+  }
+}
+

@@ -335,7 +335,8 @@ export function DocumentViewer({
             style={{ height: '36px' }}
           >
             <DownloadIcon size={14} />
-            <span>Export Review Report</span>
+            <span className="desktop-only">Export Review Report</span>
+            <span className="mobile-only">Export PDF</span>
           </button>
 
           {onClose && (
@@ -347,7 +348,8 @@ export function DocumentViewer({
               style={{ height: '36px' }}
             >
               <XIcon size={15} />
-              <span>Close Viewer</span>
+              <span className="desktop-only">Close Viewer</span>
+              <span className="mobile-only">Close</span>
             </button>
           )}
         </div>
@@ -403,10 +405,9 @@ export function DocumentViewer({
 
       {/* 3. Document Page Reader Body */}
       <div
-        className="card"
+        className="card viewer-paper-sheet"
         dir={isRtl ? 'rtl' : 'ltr'}
         style={{
-          padding: '28px 32px',
           backgroundColor: '#FFFFFF',
           minHeight: '520px',
           maxHeight: 'calc(100vh - 190px)',

@@ -153,8 +153,8 @@ export function DocumentLibrary({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-1 justify-end">
-          <div style={{ position: 'relative', maxWidth: '320px', width: '100%' }}>
+        <div className="flex items-center gap-3 flex-1 justify-end flex-wrap">
+          <div style={{ position: 'relative', maxWidth: '320px', minWidth: '180px', width: '100%' }}>
             <span
               style={{
                 position: 'absolute',
@@ -210,7 +210,8 @@ export function DocumentLibrary({
             onClick={() => setIsUploadOpen(true)}
           >
             <PlusIcon size={15} />
-            <span>Upload Contract</span>
+            <span className="desktop-only">Upload Contract</span>
+            <span className="mobile-only">Upload</span>
           </button>
         </div>
       </div>
@@ -229,7 +230,7 @@ export function DocumentLibrary({
             {selectedDocIds.size} agreement{selectedDocIds.size === 1 ? '' : 's'} selected ({completedSelectedCount} ready)
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2.5 flex-wrap workspace-action-group">
             <button
               type="button"
               className="btn btn-primary btn-sm"
@@ -304,7 +305,7 @@ export function DocumentLibrary({
           </div>
         </div>
       ) : (
-        <div className="card" style={{ overflowX: 'auto' }}>
+        <div className="card table-responsive-wrapper">
           <table className="table-dense">
             <thead>
               <tr>

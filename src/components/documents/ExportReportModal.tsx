@@ -102,15 +102,16 @@ export function ExportReportModal({
       }}
     >
       <div
-        className="card"
+        className="card modal-dialog"
         style={{
           width: '100%',
           maxWidth: '540px',
+          maxHeight: '92vh',
           backgroundColor: '#FFFFFF',
           borderRadius: 'var(--radius-lg, 12px)',
           boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
           border: '1px solid var(--border-default, #E2E8F0)',
-          overflow: 'hidden',
+          overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
         }}
@@ -209,7 +210,7 @@ export function ExportReportModal({
             <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
               Report Sections to Include
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+            <div className="export-sections-grid">
               {[
                 {
                   id: 'summary' as const,
@@ -343,6 +344,7 @@ export function ExportReportModal({
             alignItems: 'center',
             justifyContent: 'flex-end',
             gap: '10px',
+            flexWrap: 'wrap',
             backgroundColor: 'var(--surface-secondary, #F8FAFC)',
           }}
         >

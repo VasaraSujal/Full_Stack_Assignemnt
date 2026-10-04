@@ -102,7 +102,8 @@ export function ComparisonWorkspace({
             onClick={handleRunCompare}
           >
             <ScaleIcon size={15} />
-            <span>{isComparing ? 'Comparing...' : `Compare Contracts (${selectedDocIds.size})`}</span>
+            <span className="desktop-only">{isComparing ? 'Comparing...' : `Compare Contracts (${selectedDocIds.size})`}</span>
+            <span className="mobile-only">{isComparing ? 'Comparing...' : `Compare (${selectedDocIds.size})`}</span>
           </button>
         </div>
 
@@ -427,7 +428,7 @@ export function ComparisonWorkspace({
                         <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                           Authoritative Source Passages
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '10px' }}>
+                        <div className="compare-quotes-grid">
                           {/* Doc A */}
                           {change.documentA && change.documentA.quote && (
                             <div

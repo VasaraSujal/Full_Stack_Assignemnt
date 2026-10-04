@@ -108,7 +108,8 @@ export function Header({
           onClick={onOpenUpload}
         >
           <PlusIcon size={15} />
-          <span>Upload Contract</span>
+          <span className="desktop-only">Upload Contract</span>
+          <span className="mobile-only">Upload</span>
         </button>
       </div>
     </header>

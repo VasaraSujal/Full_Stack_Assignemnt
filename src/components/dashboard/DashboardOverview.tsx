@@ -104,7 +104,7 @@ export function DashboardOverview({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-shrink-0">
+        <div className="flex items-center gap-2.5 flex-shrink-0 welcome-card-actions">
           <button type="button" className="btn btn-secondary" onClick={() => onNavigateTab('research')}>
             <SearchIcon size={15} />
             <span>AI Research</span>
@@ -225,7 +225,7 @@ export function DashboardOverview({
               </button>
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-responsive-wrapper">
               <table className="table-dense">
                 <thead>
                   <tr>

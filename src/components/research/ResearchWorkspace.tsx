@@ -59,6 +59,7 @@ export function ResearchWorkspace({
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [activeConv, setActiveConv] = useState<ConversationDetail | null>(null);
   const [isLoadingConv, setIsLoadingConv] = useState(false);
+  const [isMobileSessionsOpen, setIsMobileSessionsOpen] = useState(false);
 
   // Mode: standard vs agentic
   const [researchMode, setResearchMode] = useState<'agentic' | 'standard'>('agentic');
@@ -390,7 +391,19 @@ export function ResearchWorkspace({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-shrink-0">
+        <div className="flex items-center gap-2.5 flex-shrink-0 flex-wrap">
+          {/* Mobile Sessions Toggle Button */}
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm tablet-down-only"
+            onClick={() => setIsMobileSessionsOpen(!isMobileSessionsOpen)}
+            style={{ height: '36px' }}
+            aria-label="Toggle sessions sidebar"
+          >
+            <LayersIcon size={14} />
+            <span>Sessions ({conversations.length})</span>
+          </button>
+
           {/* Mode Switcher */}
           <div
             className="flex items-center"
@@ -444,17 +457,26 @@ export function ResearchWorkspace({
             style={{ height: '36px' }}
           >
             <PlusIcon size={14} />
-            <span>New Research</span>
+            <span className="desktop-only">New Research</span>
+            <span className="mobile-only">New</span>
           </button>
         </div>
       </div>
 
       {/* 2. Main Two-Panel Workspace */}
-      <div className="flex flex-1 gap-4 min-h-0 items-stretch">
+      <div className="research-layout">
+        {/* Mobile drawer backdrop */}
+        {isMobileSessionsOpen && (
+          <div
+            className="modal-backdrop tablet-down-only"
+            onClick={() => setIsMobileSessionsOpen(false)}
+            style={{ zIndex: 59 }}
+          />
+        )}
+
         {/* Left Sessions Sidebar */}
         <div
-          className="card flex flex-col hidden md:flex"
-          style={{ width: '260px', flexShrink: 0, overflow: 'hidden' }}
+          className={`card research-sessions-panel ${isMobileSessionsOpen ? 'mobile-drawer-open' : ''}`}
         >
           <div
             className="px-4 py-3 border-b flex items-center justify-between"
@@ -463,6 +485,15 @@ export function ResearchWorkspace({
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Sessions ({conversations.length})
             </span>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm tablet-down-only"
+              onClick={() => setIsMobileSessionsOpen(false)}
+              aria-label="Close sessions drawer"
+              style={{ padding: '2px 6px', height: '24px' }}
+            >
+              <XIcon size={14} />
+            </button>
           </div>
 
           <div className="flex-1 p-2 flex flex-col gap-1.5 overflow-y-auto">
@@ -477,7 +508,10 @@ export function ResearchWorkspace({
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => setActiveConvId(c.id)}
+                    onClick={() => {
+                      setActiveConvId(c.id);
+                      setIsMobileSessionsOpen(false);
+                    }}
                     style={{
                       padding: '10px 12px',
                       borderRadius: 'var(--radius-md)',
@@ -556,7 +590,7 @@ export function ResearchWorkspace({
         </div>
 
         {/* Right Conversation Panel */}
-        <div className="card flex-1 flex flex-col justify-between min-w-0 overflow-hidden">
+        <div className="card research-chat-panel">
           {/* Scrollable Conversation History */}
           <div
             ref={chatScrollRef}
@@ -617,7 +651,7 @@ export function ResearchWorkspace({
                   <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>
                     Quick Research Queries
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px' }}>
+                  <div className="quick-prompts-grid">
                     {QUICK_PROMPT_CARDS.map((card, idx) => (
                       <button
                         key={idx}
@@ -945,7 +979,7 @@ export function ResearchWorkspace({
           {/* Bottom Pinned Question Composer */}
           <form
             onSubmit={(e) => handleSendQuestion(e)}
-            className="p-3.5 border-t flex items-end gap-3"
+            className="p-3.5 border-t flex items-end gap-3 chat-input-bar"
             style={{ backgroundColor: 'var(--surface-primary)' }}
           >
             <div className="flex-1 relative">
