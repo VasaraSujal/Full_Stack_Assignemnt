@@ -1,4 +1,4 @@
-import { getGeminiClient, DEFAULT_GEMINI_MODEL, isGeminiConfigured, executeWithModelFallback } from './gemini';
+import { getGeminiClient, DEFAULT_GEMINI_MODEL, isGeminiConfigured, executeWithModelFallback, extractGeminiResponseText } from './gemini';
 import { retrieveRelevantChunks } from './retrieval';
 import {
   CONTRACT_QA_SYSTEM_INSTRUCTION,
@@ -117,7 +117,7 @@ export async function generateContractAnswer(
       })
   );
 
-  const responseText = response.text || '';
+  const responseText = extractGeminiResponseText(response);
   const parsedResponse = parseGeminiJson(responseText);
 
   // 6. Verify citation candidates against authoritative database records

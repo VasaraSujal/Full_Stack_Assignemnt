@@ -2,20 +2,46 @@ import { GoogleGenAI } from '@google/genai';
 
 let geminiClient: GoogleGenAI | null = null;
 
-export const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+export const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 
 /**
  * Ordered list of candidate models for automatic fallback on 503 high-demand or 429 quota spikes.
  */
 export const GEMINI_FALLBACK_MODELS = [
-  process.env.GEMINI_MODEL || 'gemini-3.5-flash',
-  'gemini-3.7-flash',
+  process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite',
   'gemini-3.1-flash-lite',
-  'gemini-flash-lite-latest',
+  'gemini-3.7-flash',
+  'gemini-3.5-flash',
   'gemini-3.8-flash',
-  'gemini-flash-latest',
   'gemini-2.5-flash',
 ];
+
+/**
+ * Safely extracts text from Gemini response, checking both response.text and candidate content parts.
+ */
+export function extractGeminiResponseText(response: unknown): string {
+  if (!response || typeof response !== 'object') return '';
+  const r = response as Record<string, unknown>;
+
+  if (typeof r.text === 'string' && r.text.trim().length > 0) {
+    return r.text.trim();
+  }
+
+  const candidates = r.candidates as Array<{ content?: { parts?: Array<{ text?: string }> } }> | undefined;
+  if (Array.isArray(candidates) && candidates.length > 0) {
+    const parts = candidates[0]?.content?.parts;
+    if (Array.isArray(parts)) {
+      const textParts = parts
+        .filter((p) => p && typeof p.text === 'string' && p.text.trim().length > 0)
+        .map((p) => (p.text as string).trim());
+      if (textParts.length > 0) {
+        return textParts.join('\n');
+      }
+    }
+  }
+
+  return '';
+}
 
 /**
  * Detect transient upstream Gemini errors such as 503 (model overloaded / high demand) or 429 (rate-limit / quota).

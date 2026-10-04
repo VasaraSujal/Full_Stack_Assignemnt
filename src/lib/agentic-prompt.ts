@@ -45,9 +45,9 @@ When you are ready to deliver your final answer (without calling more tools), re
  * Safely parse final answer JSON from Gemini in agentic loop
  */
 export function parseAgenticFinalAnswer(rawText: string): AgenticResearchFinalAnswer {
-  if (!rawText || typeof rawText !== 'string') {
+  if (!rawText || typeof rawText !== 'string' || !rawText.trim()) {
     return {
-      answer: 'No response content was generated.',
+      answer: '',
       citations: [],
       limitations: ['Empty response received.'],
       hasSufficientEvidence: false,

@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma';
 import { DocumentStatus } from '@prisma/client';
-import { getGeminiClient, DEFAULT_GEMINI_MODEL, isGeminiConfigured, GEMINI_FALLBACK_MODELS, isTransientGeminiError, executeWithModelFallback } from './gemini';
+import { getGeminiClient, DEFAULT_GEMINI_MODEL, isGeminiConfigured, GEMINI_FALLBACK_MODELS, isTransientGeminiError, executeWithModelFallback, extractGeminiResponseText } from './gemini';
 import {
   AGENTIC_RESEARCH_TOOLS,
   dispatchAgenticTool,
@@ -257,7 +257,7 @@ export async function performAgenticResearch(
             const synthesisPrompt = `You are a legal contract research assistant. Based strictly on the verified evidence excerpts retrieved from the agreement below, answer the user's question clearly, thoroughly, and objectively. Quote exact phrases from the excerpts.\n\nEVIDENCE RETRIEVED:\n${evidenceContext}\n\nUSER QUESTION: ${cleanQuestion}\n\nProvide your analysis adhering strictly to this JSON format:\n{\n  "answer": "Comprehensive answer text",\n  "citations": [\n    {\n      "documentId": "string",\n      "pageNumber": 1,\n      "quotedText": "exact verbatim text from evidence",\n      "relevanceExplanation": "why this excerpt supports the answer"\n    }\n  ],\n  "limitations": ["any relevant caveats or missing information"],\n  "hasSufficientEvidence": true\n}`;
 
             const { result: synRes, usedModel: synModel } = await executeWithModelFallback(
-              candidateModels[mIdx + 1] || 'gemini-3.5-flash',
+              candidateModels[mIdx + 1] || DEFAULT_GEMINI_MODEL,
               (m) =>
                 ai.models.generateContent({
                   model: m,
@@ -271,7 +271,8 @@ export async function performAgenticResearch(
             );
 
             activeModel = synModel;
-            finalAnswer = parseAgenticFinalAnswer(synRes.text || '');
+            const synText = extractGeminiResponseText(synRes);
+            finalAnswer = parseAgenticFinalAnswer(synText);
           } catch {
             finalAnswer = {
               answer: `Based on ${totalToolExecutions} verified excerpts retrieved from the agreement:\n\n${collectedPassages.map((p) => p.summary).join('\n\n')}`,
@@ -292,8 +293,11 @@ export async function performAgenticResearch(
 
       // If Gemini decided not to call any tools or returned the final answer
       if (!functionCalls || functionCalls.length === 0) {
-        const responseText = response.text || '';
-        finalAnswer = parseAgenticFinalAnswer(responseText);
+        const responseText = extractGeminiResponseText(response);
+        const parsed = parseAgenticFinalAnswer(responseText);
+        if (parsed.answer && parsed.answer.trim().length > 0 && parsed.answer !== 'No response content was generated.') {
+          finalAnswer = parsed;
+        }
         roundDurations.push({ round, durationMs: Date.now() - roundStartTime });
         break;
       }
@@ -402,7 +406,17 @@ export async function performAgenticResearch(
 }
 
   // 6. If loop exited without final answer (e.g. hit max rounds or duplicate limit), request conclusion
-  if (!finalAnswer) {
+  const isAnswerValid = (ans: AgenticResearchFinalAnswer | null | undefined): boolean => {
+    if (!ans) return false;
+    const text = ans.answer?.trim();
+    if (!text || text === 'No response content was generated.' || text === 'Empty response received.') {
+      return false;
+    }
+    return true;
+  };
+
+  // 6. If loop exited without valid final answer, request conclusion from active chat session
+  if (!isAnswerValid(finalAnswer)) {
     callbacks.onStatus?.('synthesizing', 'Synthesizing evidence collected during research...');
     try {
       if (chatSession) {
@@ -410,64 +424,91 @@ export async function performAgenticResearch(
           message:
             'Research complete. Please synthesize your final evidence-grounded answer based strictly on the collected document excerpts and return it in valid JSON format according to the schema.',
         });
-        finalAnswer = parseAgenticFinalAnswer(concludingResponse.text || '');
-      } else {
-        throw new Error('No active chat session.');
+        const concludingText = extractGeminiResponseText(concludingResponse);
+        const parsed = parseAgenticFinalAnswer(concludingText);
+        if (isAnswerValid(parsed)) {
+          finalAnswer = parsed;
+        }
       }
-    } catch {
-      // Graceful fallback synthesis with active fallback models using collected passages
-      try {
-        const evidenceContext = collectedPassages
-          .map((p, i) => `[Evidence ${i + 1} from ${p.toolName}]:\n${p.summary}`)
-          .join('\n\n');
-
-        const synthesisPrompt = `You are a legal contract research assistant. Based strictly on the verified evidence excerpts retrieved from the agreement below, answer the user's question clearly, thoroughly, and objectively. Quote exact phrases from the excerpts.\n\nEVIDENCE RETRIEVED:\n${evidenceContext}\n\nUSER QUESTION: ${cleanQuestion}\n\nProvide your analysis adhering strictly to this JSON format:\n{\n  "answer": "Comprehensive answer text",\n  "citations": [\n    {\n      "documentId": "string",\n      "pageNumber": 1,\n      "quotedText": "exact verbatim text from evidence",\n      "relevanceExplanation": "why this excerpt supports the answer"\n    }\n  ],\n  "limitations": ["any relevant caveats or missing information"],\n  "hasSufficientEvidence": true\n}`;
-
-        const { result: synRes, usedModel: synModel } = await executeWithModelFallback(
-          'gemini-3.5-flash',
-          (m) =>
-            ai.models.generateContent({
-              model: m,
-              contents: synthesisPrompt,
-              config: {
-                systemInstruction: AGENTIC_RESEARCH_SYSTEM_INSTRUCTION,
-                responseMimeType: 'application/json',
-                temperature: 0.1,
-              },
-            })
-        );
-
-        activeModel = synModel;
-        finalAnswer = parseAgenticFinalAnswer(synRes.text || '');
-      } catch {
-        finalAnswer = {
-          answer: collectedPassages.length > 0
-            ? `Based on ${totalToolExecutions} verified excerpts retrieved from the agreement:\n\n${collectedPassages.map((p) => p.summary).join('\n\n')}`
-            : `Research concluded with ${totalToolExecutions} tool executions across ${completedDocs.length} contract document(s).`,
-          citations: [],
-          limitations: [
-            'Automated synthesis reached execution boundaries.',
-          ],
-          hasSufficientEvidence: totalToolExecutions > 0,
-        };
-      }
+    } catch (conclErr) {
+      console.warn('[Agentic Research] Concluding chat turn failed:', conclErr);
     }
   }
+
+  // Fallback multi-model synthesis if finalAnswer is still not valid
+  if (!isAnswerValid(finalAnswer)) {
+    callbacks.onStatus?.('synthesizing', 'Synthesizing verified document findings with fallback engine...');
+    try {
+      const evidenceContext = collectedPassages.length > 0
+        ? collectedPassages
+            .map((p, i) => `[Evidence ${i + 1} from ${p.toolName}]:\n${p.summary}`)
+            .join('\n\n')
+        : completedDocs
+            .map((d) => `[Document: ${d.originalFilename} (ID: ${d.id})]`)
+            .join('\n');
+
+      const synthesisPrompt = `You are a legal contract research assistant. Based strictly on the verified evidence excerpts retrieved from the agreement below, answer the user's question clearly, thoroughly, and objectively. Quote exact phrases from the excerpts.\n\nEVIDENCE RETRIEVED:\n${evidenceContext}\n\nUSER QUESTION: ${cleanQuestion}\n\nProvide your analysis adhering strictly to this JSON format:\n{\n  "answer": "Comprehensive answer text",\n  "citations": [\n    {\n      "documentId": "${completedDocs[0]?.id || ''}",\n      "pageNumber": 1,\n      "quotedText": "exact verbatim text from evidence",\n      "relevanceExplanation": "why this excerpt supports the answer"\n    }\n  ],\n  "limitations": ["any relevant caveats or missing information"],\n  "hasSufficientEvidence": true\n}`;
+
+      const { result: synRes, usedModel: synModel } = await executeWithModelFallback(
+        DEFAULT_GEMINI_MODEL,
+        (m) =>
+          ai.models.generateContent({
+            model: m,
+            contents: synthesisPrompt,
+            config: {
+              systemInstruction: AGENTIC_RESEARCH_SYSTEM_INSTRUCTION,
+              responseMimeType: 'application/json',
+              temperature: 0.1,
+            },
+          })
+      );
+
+      activeModel = synModel;
+      const synText = extractGeminiResponseText(synRes);
+      const synParsed = parseAgenticFinalAnswer(synText);
+      if (isAnswerValid(synParsed)) {
+        finalAnswer = synParsed;
+      } else if (synText.trim().length > 0) {
+        finalAnswer = {
+          answer: synText.trim(),
+          citations: [],
+          limitations: [],
+          hasSufficientEvidence: true,
+        };
+      }
+    } catch (synErr) {
+      console.warn('[Agentic Research] Fallback synthesis failed:', synErr);
+    }
+  }
+
+  // Absolute safety net guarantee: ensure non-empty answer is always returned
+  const safeFinalAnswer: AgenticResearchFinalAnswer =
+    isAnswerValid(finalAnswer) && finalAnswer
+      ? finalAnswer
+      : {
+          answer:
+            collectedPassages.length > 0
+              ? `Based on ${totalToolExecutions} verified excerpts retrieved from the agreement:\n\n${collectedPassages.map((p) => p.summary).join('\n\n')}`
+              : `Based on an examination of the contract documents (${completedDocs.map((d) => d.originalFilename).join(', ')}), no specific clauses directly matching "${cleanQuestion}" were identified. Please review the attached contract text or refine your question.`,
+          citations: [],
+          limitations: ['Automated synthesis reached execution boundaries.'],
+          hasSufficientEvidence: totalToolExecutions > 0,
+        };
 
   // 7. Verify all proposed citations against authoritative stored records
   callbacks.onStatus?.('verifying', 'Verifying quotations against authoritative contract text...');
   const verificationResult = await verifyCitationCandidates(
     conversationId,
-    finalAnswer.citations
+    safeFinalAnswer.citations
   );
 
   const totalDurationMs = Date.now() - globalStartTime;
 
   return {
-    answer: finalAnswer.answer,
+    answer: safeFinalAnswer.answer,
     citations: verificationResult.citations,
-    limitations: finalAnswer.limitations,
-    hasSufficientEvidence: finalAnswer.hasSufficientEvidence,
+    limitations: safeFinalAnswer.limitations,
+    hasSufficientEvidence: safeFinalAnswer.hasSufficientEvidence,
     verificationSummary: {
       totalCandidates: verificationResult.totalCandidates,
       verifiedCount: verificationResult.verifiedCount,
