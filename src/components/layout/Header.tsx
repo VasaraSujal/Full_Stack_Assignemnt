@@ -93,7 +93,7 @@ export function Header({
                 display: 'inline-block',
               }}
             />
-            <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Gemini 3.8 Flash</strong>
+            <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Gemini 3.5 Flash</strong>
           </span>
           <span style={{ color: 'var(--border-strong)', margin: '0 2px' }}>·</span>
           <span className="flex items-center gap-1" style={{ color: 'var(--status-verified-text)', fontWeight: 500 }}>

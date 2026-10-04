@@ -2,15 +2,17 @@ import { GoogleGenAI } from '@google/genai';
 
 let geminiClient: GoogleGenAI | null = null;
 
-export const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+export const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 
 /**
  * Ordered list of candidate models for automatic fallback on 503 high-demand or 429 quota spikes.
  */
 export const GEMINI_FALLBACK_MODELS = [
-  process.env.GEMINI_MODEL || 'gemini-3.8-flash',
-  'gemini-3.5-flash',
+  process.env.GEMINI_MODEL || 'gemini-3.5-flash',
   'gemini-3.7-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-lite-latest',
+  'gemini-3.8-flash',
   'gemini-flash-latest',
   'gemini-2.5-flash',
 ];
